@@ -1,18 +1,25 @@
-% this version has nicer outputs
+%function retval = model7(a,b)
+%display(a);
 
-% set parameters
-t_max = 20 * 24;   % 30 days = 720 hours
+% fixed parameters
+t_max = 30 * 24;   % 30 days = 720 hours
 dt = 0.1; 
 T = 0:dt:t_max; 
 
-intravasation_rate = 0.001; % rate at which cancer cells invade vasculature
-seeding_rate = 0.001;
-vasc_rate = 0.0001;
 birth_rate = 1/24;
 K0 = 15000; 
-K0 = 1000;  % make less for B=0
-Kmax = 25000
+Kmax = 9.4*10^9;
+Kdelta = Kmax - K0;
 CTC_death_rate = 1/24;  % Circulating Tumor Cells
+
+% varying params (from command line)
+% to test this, execute 'clearvars'
+set_params_from_cmdline = true;
+if (set_params_from_cmdline == false)
+    intravasation_rate = 1.e-7;
+    seeding_rate = 0.0001;
+    vasc_rate = 0.0014;
+end
 
 % create a single tumor site
 tumor_site.birth_rate = birth_rate;
@@ -58,15 +65,17 @@ for i=2:length(T)
 
         % update blood vessels
         tumor_sites(j).B(i) = tumor_sites(j).B(i-1) + dt*tumor_sites(j).vasc_rate;
-        tumor_sites(j).B(i) = min(tumor_sites(j).B(i)+.01, 1.0);
+        tumor_sites(j).B(i) = min(tumor_sites(j).B(i), 1.0);
         
         % update carrying capacity
-        tumor_sites(j).K(i) = K0 + tumor_sites(j).B(i) * (Kmax - K0);
+        %tumor_sites(j).K(i) = K0 + tumor_sites(j).K(i) * (Kmax - K0);
+        tumor_sites(j).K(i) = K0 + Kdelta * tumor_sites(j).B(i);
         
         % rate of vascularization increases when the tumor cell population
         % is closer to the current car-rying capacity
         if (tumor_sites(j).N(i) > 0.9*tumor_sites(j).K(i))
-            tumor_sites(j).vasc_rate = tumor_sites(j).vasc_rate + vasc_rate;
+            %tumor_sites(j).vasc_rate = tumor_sites(j).vasc_rate + 0.1*vasc_rate;
+            tumor_sites(j).vasc_rate = tumor_sites(j).vasc_rate + 0.0001*tumor_sites(j).vasc_rate;
         end
     end
     
@@ -77,10 +86,44 @@ for i=2:length(T)
         tumor_sites(end+1) = tumor_site; 
         tumor_sites(end).N(i) = 1; 
         CTC(i) = CTC(i) - 1; 
-        disp( sprintf('new metastasis at time %3.1f days! %u tumor sites' , T(i)/24 , length(tumor_sites) ))
+        %disp( sprintf('new metastasis at time %3.1f days! %u tumor sites' , T(i)/24 , length(tumor_sites) ))
     end
     
     % calculate the number of metastases 
-    number_of_mets(i) = length( tumor_sites ) - 1; 
+    number_of_mets(i) = length( tumor_sites ) - 1;  % don't count primary site
     
+    if (number_of_mets(i) > 5000)
+        disp('breaking out due to exceeded max mets')
+        break
+    end
 end
+
+for idx=1:2 
+    plot(T/24,tumor_sites(idx).N)
+    xlabel('T(days)','FontSize',20)
+    ystr = sprintf('sites(%d).N',idx)
+    ylabel(ystr,'FontSize',20)
+    png_fname = sprintf('T_N%d',idx)
+    print(png_fname,'-dpng')
+    
+    plot(T/24,tumor_sites(idx).B)
+    xlabel('T(days)','FontSize',20)
+    ystr = sprintf('sites(%d).B',idx)
+    ylabel(ystr,'FontSize',20)
+    png_fname = sprintf('T_B%d',idx)
+    print(png_fname,'-dpng')
+    
+    plot(T/24,tumor_sites(idx).K)
+    xlabel('T(days)','FontSize',20)
+    ystr = sprintf('sites(%d).K',idx)
+    ylabel(ystr,'FontSize',20)
+    png_fname = sprintf('T_K%d',idx)
+    print(png_fname,'-dpng')
+end
+plot(T/24,number_of_mets)
+xlabel('T(days)','FontSize',20)
+ylabel('# mets','FontSize',20)
+png_fname = sprintf('T_num_mets')
+print(png_fname,'-dpng')
+
+%retval = 0;
